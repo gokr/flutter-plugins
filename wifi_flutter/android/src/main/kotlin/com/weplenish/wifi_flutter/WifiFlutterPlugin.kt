@@ -50,15 +50,18 @@ class WifiFlutterPlugin(private val activity: Activity): MethodCallHandler {
   }
 
   private fun startWifiScan(result: Result){
+    var receiver: WifiScanReceiver
     IntentFilter().run {
       addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
-      activity.applicationContext.registerReceiver(WifiScanReceiver(result), this)
+      receiver = WifiScanReceiver(result)
+      activity.applicationContext.registerReceiver(receiver, this)
     }
 
     val wifiManager = activity.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     val scanStarted = wifiManager.startScan()
     if(!scanStarted){
       result.error("startScan", "Unable to start scan.", scanStarted)
+      activity.applicationContext.unregisterReceiver(receiver)
     }
   }
 }
@@ -72,11 +75,16 @@ private fun mapScanResults(results: List<ScanResult>) = results.map { network ->
 }
 
 private class WifiScanReceiver(private val result: Result) : BroadcastReceiver() {
+  private var done: Boolean = false;
+
   override fun onReceive(context: Context, intent: Intent) {
-    if (intent.action == WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) {
-      val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-      result.success(mapScanResults(wifiManager.scanResults))
-      context.applicationContext.unregisterReceiver(this)
+    if (!done) {
+      if (intent.action == WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) {
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        result.success(mapScanResults(wifiManager.scanResults))
+        context.applicationContext.unregisterReceiver(this)
+        done = true
+      }
     }
   }
 }
